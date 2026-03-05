@@ -12,7 +12,7 @@ import {
   Edge,
   useReactFlow,
   ReactFlowProvider,
-  NodeDragHandler,
+  OnNodeDrag,
 } from "@xyflow/react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import ChatNode from "./nodes/ChatNode";
@@ -85,23 +85,21 @@ function Flow() {
     [screenToFlowPosition, setNodes]
   );
 
-  const onNodeDragStart: NodeDragHandler = useCallback((_event, node) => {
+  const onNodeDragStart: OnNodeDrag = useCallback((_event, node) => {
     setIsDragging(true);
     dragNodeId.current = node.id;
   }, []);
 
-  const onNodeDrag: NodeDragHandler = useCallback((_event, _node, _nodes) => {
-    const e = _event as MouseEvent;
+  const onNodeDrag: OnNodeDrag = useCallback((event, _node, _nodes) => {
     const inTrash =
-      e.clientX > window.innerWidth - TRASH_ZONE.right && e.clientY < TRASH_ZONE.top;
+      event.clientX > window.innerWidth - TRASH_ZONE.right && event.clientY < TRASH_ZONE.top;
     setOverTrash(inTrash);
   }, []);
 
-  const onNodeDragStop: NodeDragHandler = useCallback(
-    (_event, _node) => {
-      const e = _event as MouseEvent;
+  const onNodeDragStop: OnNodeDrag = useCallback(
+    (event, _node) => {
       const inTrash =
-        e.clientX > window.innerWidth - TRASH_ZONE.right && e.clientY < TRASH_ZONE.top;
+        event.clientX > window.innerWidth - TRASH_ZONE.right && event.clientY < TRASH_ZONE.top;
       if (inTrash && dragNodeId.current) {
         deleteElements({ nodes: [{ id: dragNodeId.current }] });
       }

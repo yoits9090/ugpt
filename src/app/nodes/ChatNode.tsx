@@ -275,7 +275,7 @@ function ChatNodeInner({ id, data, selected }: NodeProps) {
             const startX = e.clientX;
             const startY = e.clientY;
             const startW = nodeWidth;
-            const startH = nodeHeight;
+            const startH = nodeHeight ?? e.currentTarget.parentElement?.getBoundingClientRect().height ?? 80;
 
             const zoom = getZoom();
             const onMove = (ev: PointerEvent) => {
