@@ -12,6 +12,10 @@ const MODEL = process.env.MODEL || "meta-llama/llama-3.1-8b-instruct:free";
 const IMAGE_MODEL = "bytedance-seed/seedream-4.5";
 const DAILY_BUDGET = parseFloat(process.env.DAILY_BUDGET || "1.00");
 const IMAGE_DAILY_LIMIT = 5;
+const EXTRA_CORS_ORIGINS = (process.env.CORS_ORIGINS || "")
+  .split(",")
+  .map((s) => s.trim())
+  .filter(Boolean);
 
 // --- Tool definitions ---
 const TOOLS = [
@@ -88,14 +92,26 @@ function addImageUsage(ip: string) {
 }
 
 // --- CORS ---
+const ALLOWED_ORIGINS = new Set([
+  "http://localhost:3000",
+  "http://localhost:3002",
+  "https://ugpt.ca",
+  "https://www.ugpt.ca",
+  ...EXTRA_CORS_ORIGINS,
+]);
+
+const VERCEL_ORIGIN_RE = /^https:\/\/([a-z0-9-]+\.)*vercel\.app$/i;
+
 app.use(
   cors({
-    origin: [
-      "http://localhost:3000",
-      "http://localhost:3002",
-      "https://ugpt.ca",
-      "https://www.ugpt.ca",
-    ],
+    origin(origin, callback) {
+      // Allow non-browser clients and same-origin requests.
+      if (!origin) return callback(null, true);
+      if (ALLOWED_ORIGINS.has(origin) || VERCEL_ORIGIN_RE.test(origin)) {
+        return callback(null, true);
+      }
+      return callback(new Error(`CORS blocked for origin: ${origin}`));
+    },
   })
 );
 

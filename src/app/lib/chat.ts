@@ -3,7 +3,24 @@ export interface ChatMessage {
   content: string;
 }
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
+function resolveApiUrl() {
+  const raw = (process.env.NEXT_PUBLIC_API_URL || "").trim();
+  if (!raw) return "http://localhost:3001";
+
+  // If production is served over HTTPS, force HTTPS for non-local backends.
+  if (raw.startsWith("http://") && !raw.includes("localhost")) {
+    return raw.replace(/^http:\/\//, "https://").replace(/\/$/, "");
+  }
+
+  // Allow bare domains in env (e.g. "api.ugpt.ca").
+  if (!/^https?:\/\//i.test(raw) && !raw.startsWith("/")) {
+    return `https://${raw}`.replace(/\/$/, "");
+  }
+
+  return raw.replace(/\/$/, "");
+}
+
+const API_URL = resolveApiUrl();
 
 export type ToolEventType = "image_generating" | "image_result" | "image_error" | "searching" | "search_sources" | "search_done" | "search_error";
 
