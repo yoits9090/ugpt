@@ -4,11 +4,25 @@ import { Handle, Position, NodeProps, useReactFlow } from "@xyflow/react";
 import { useState, useRef, useEffect, useCallback, memo, KeyboardEvent } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { ChatMessage, streamChat } from "../lib/chat";
+import { ChatMessage, streamChat, ToolEventType } from "../lib/chat";
 
 // Memoized markdown renderer to avoid re-parsing on every drag
 const MemoMarkdown = memo(function MemoMarkdown({ content }: { content: string }) {
-  return <ReactMarkdown remarkPlugins={[remarkGfm]}>{content}</ReactMarkdown>;
+  return (
+    <ReactMarkdown
+      remarkPlugins={[remarkGfm]}
+      components={{
+        img: ({ src, ...props }) => (src ? <img src={src} {...props} /> : null),
+        a: ({ href, children, ...props }) => (
+          <a href={href} target="_blank" rel="noopener noreferrer" {...props}>
+            {children}
+          </a>
+        ),
+      }}
+    >
+      {content}
+    </ReactMarkdown>
+  );
 });
 
 const handleBtn: React.CSSProperties = {
@@ -28,19 +42,27 @@ const handleBtn: React.CSSProperties = {
   fontFamily: "var(--font-geist-mono), monospace",
 };
 
-function ChatNodeInner({ id, data }: NodeProps) {
-  const { updateNodeData, getNode, getEdges, addNodes, addEdges, getZoom } = useReactFlow();
+function ChatNodeInner({ id, data, selected }: NodeProps) {
+  const { updateNodeData, getNode, getEdges, addNodes, addEdges, getZoom, deleteElements } = useReactFlow();
   const [inputValue, setInputValue] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const messages = (data.messages as ChatMessage[]) || [];
   const isStreaming = (data.isStreaming as boolean) || false;
+  const generatingImage = (data.generatingImage as boolean) || false;
+  const searching = (data.searching as boolean) || false;
+  const searchSources = (data.searchSources as string[]) || [];
+  const imageUrls = (data.imageUrls as string[]) || [];
   const nodeWidth = (data.w as number) || 380;
   const nodeHeight = (data.h as number) || null;
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
+
+  useEffect(() => {
+    if (selected) textareaRef.current?.focus();
+  }, [selected]);
 
   useEffect(() => {
     const ta = textareaRef.current;
@@ -116,6 +138,39 @@ function ChatNodeInner({ id, data }: NodeProps) {
         const msgs = [...((node.data.messages as ChatMessage[]) || [])];
         msgs.push({ role: "assistant", content: `Error: ${error.message}` });
         updateNodeData(id, { messages: msgs, isStreaming: false });
+      },
+      (type: ToolEventType, eventData?: string) => {
+        // Image events
+        if (type === "image_generating") {
+          updateNodeData(id, { generatingImage: true });
+        } else if (type === "image_result" && eventData) {
+          const node = getNode(id);
+          const existing = (node?.data.imageUrls as string[]) || [];
+          updateNodeData(id, { imageUrls: [...existing, eventData], generatingImage: false });
+        } else if (type === "image_error" && eventData) {
+          const node = getNode(id);
+          if (!node) return;
+          const msgs = [...((node.data.messages as ChatMessage[]) || [])];
+          msgs.push({ role: "assistant", content: `*Image error: ${eventData}*` });
+          updateNodeData(id, { messages: msgs, generatingImage: false });
+        }
+        // Search events
+        else if (type === "searching") {
+          updateNodeData(id, { searching: true, searchSources: [] });
+        } else if (type === "search_sources" && eventData) {
+          try {
+            const urls = JSON.parse(eventData) as string[];
+            updateNodeData(id, { searchSources: urls });
+          } catch { /* skip */ }
+        } else if (type === "search_done") {
+          updateNodeData(id, { searching: false });
+        } else if (type === "search_error" && eventData) {
+          const node = getNode(id);
+          if (!node) return;
+          const msgs = [...((node.data.messages as ChatMessage[]) || [])];
+          msgs.push({ role: "assistant", content: `*Search error: ${eventData}*` });
+          updateNodeData(id, { messages: msgs, searching: false });
+        }
       }
     );
   }, [inputValue, isStreaming, messages, id, updateNodeData, getAttachedContext, getNode]);
@@ -124,6 +179,11 @@ function ChatNodeInner({ id, data }: NodeProps) {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       handleSend();
+    }
+    // Delete node when Delete/Backspace pressed with empty input
+    if ((e.key === "Delete" || e.key === "Backspace") && inputValue === "") {
+      e.preventDefault();
+      deleteElements({ nodes: [{ id }] });
     }
   };
 
@@ -323,7 +383,66 @@ function ChatNodeInner({ id, data }: NodeProps) {
               </div>
             </div>
           ))}
-          {isStreaming && (
+          {/* Generated images */}
+          {imageUrls.map((url, i) => (
+            <div key={`img-${i}`} style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
+              <div style={{ width: 6, height: 6, borderRadius: "50%", background: "#888", marginTop: 6, flexShrink: 0 }} />
+              <img
+                src={url}
+                alt="generated image"
+                style={{ maxWidth: "85%", borderRadius: 8 }}
+              />
+            </div>
+          ))}
+          {/* Image generating placeholder */}
+          {generatingImage && (
+            <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
+              <div style={{ width: 6, height: 6, borderRadius: "50%", background: "#888", marginTop: 6, flexShrink: 0, animation: "pulse 1.5s infinite" }} />
+              <div
+                style={{
+                  width: "85%",
+                  height: 200,
+                  background: "#1a1a1a",
+                  borderRadius: 8,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  animation: "pulse 1.5s infinite",
+                }}
+              >
+                <span style={{ color: "#555", fontSize: 12 }}>generating image...</span>
+              </div>
+            </div>
+          )}
+          {/* Searching indicator with favicons */}
+          {searching && (
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <div style={{ width: 6, height: 6, borderRadius: "50%", background: "#888", flexShrink: 0, animation: "pulse 1.5s infinite" }} />
+              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <span style={{ color: "#666", fontSize: 13, animation: "pulse 1.5s infinite" }}>searching...</span>
+                {searchSources.length > 0 && (
+                  <div style={{ display: "flex", gap: 3, alignItems: "center" }}>
+                    {searchSources.map((url, i) => {
+                      try {
+                        const domain = new URL(url).hostname;
+                        return (
+                          <img
+                            key={i}
+                            src={`https://www.google.com/s2/favicons?sz=16&domain=${domain}`}
+                            alt={domain}
+                            title={domain}
+                            style={{ width: 14, height: 14, borderRadius: 2, opacity: 0.7 }}
+                          />
+                        );
+                      } catch { return null; }
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+          {/* Streaming indicator */}
+          {isStreaming && !generatingImage && !searching && (
             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
               <div
                 style={{

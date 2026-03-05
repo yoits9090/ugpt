@@ -1,0 +1,66 @@
+name: Deploy Backend
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "server/**"
+      - ".github/workflows/deploy.yml"
+
+concurrency:
+  group: deploy-backend
+  cancel-in-progress: false
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install dependencies
+        working-directory: server
+        run: npm ci
+
+      - name: Type-check
+        working-directory: server
+        run: npm run typecheck
+
+      - name: Bundle with esbuild
+        working-directory: server
+        run: npm run build
+
+      - name: Prepare deploy package
+        run: |
+          mkdir -p deploy
+          cp server/dist/server.mjs deploy/
+          cp deploy-scripts/deploy-remote.sh deploy/
+          tar -czf deploy.tar.gz -C deploy .
+
+      - name: Copy to EC2
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ubuntu
+          key: ${{ secrets.EC2_SSH_KEY }}
+          source: "deploy.tar.gz"
+          target: "/tmp"
+
+      - name: Deploy with blue/green swap
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ubuntu
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            mkdir -p /tmp/deploy-staging
+            cd /tmp && tar -xzf deploy.tar.gz -C /tmp/deploy-staging
+            sudo bash /tmp/deploy-staging/deploy-remote.sh
+            rm -rf /tmp/deploy.tar.gz /tmp/deploy-staging

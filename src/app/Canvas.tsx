@@ -12,6 +12,7 @@ import {
   Edge,
   useReactFlow,
   ReactFlowProvider,
+  NodeDragHandler,
 } from "@xyflow/react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import ChatNode from "./nodes/ChatNode";
@@ -26,12 +27,17 @@ const defaultNode: Node = {
   data: { messages: [], isStreaming: false },
 };
 
+const TRASH_ZONE = { right: 80, top: 80 };
+
 function Flow() {
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([defaultNode]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
-  const { screenToFlowPosition, fitView, zoomIn, zoomOut } = useReactFlow();
+  const { screenToFlowPosition, fitView, zoomIn, zoomOut, deleteElements } = useReactFlow();
   const initialized = useRef(false);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const [overTrash, setOverTrash] = useState(false);
+  const dragNodeId = useRef<string | null>(null);
 
   useEffect(() => {
     if (initialized.current) return;
@@ -79,6 +85,33 @@ function Flow() {
     [screenToFlowPosition, setNodes]
   );
 
+  const onNodeDragStart: NodeDragHandler = useCallback((_event, node) => {
+    setIsDragging(true);
+    dragNodeId.current = node.id;
+  }, []);
+
+  const onNodeDrag: NodeDragHandler = useCallback((_event, _node, _nodes) => {
+    const e = _event as MouseEvent;
+    const inTrash =
+      e.clientX > window.innerWidth - TRASH_ZONE.right && e.clientY < TRASH_ZONE.top;
+    setOverTrash(inTrash);
+  }, []);
+
+  const onNodeDragStop: NodeDragHandler = useCallback(
+    (_event, _node) => {
+      const e = _event as MouseEvent;
+      const inTrash =
+        e.clientX > window.innerWidth - TRASH_ZONE.right && e.clientY < TRASH_ZONE.top;
+      if (inTrash && dragNodeId.current) {
+        deleteElements({ nodes: [{ id: dragNodeId.current }] });
+      }
+      setIsDragging(false);
+      setOverTrash(false);
+      dragNodeId.current = null;
+    },
+    [deleteElements]
+  );
+
   const clearAll = useCallback(() => {
     setNodes([{
       id: `chat-${Date.now()}`,
@@ -107,8 +140,32 @@ function Flow() {
 
   return (
     <div style={{ width: "100vw", height: "100vh" }} onDoubleClick={createNode}>
+      {/* Trash zone — visible when dragging */}
+      {isDragging && (
+        <div
+          style={{
+            position: "fixed",
+            top: 0,
+            right: 0,
+            width: TRASH_ZONE.right,
+            height: TRASH_ZONE.top,
+            zIndex: 60,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            background: overTrash ? "rgba(220, 38, 38, 0.3)" : "rgba(255, 255, 255, 0.03)",
+            borderBottomLeftRadius: 16,
+            transition: "background 0.15s",
+            pointerEvents: "none",
+          }}
+        >
+          <span style={{ fontSize: 20, opacity: overTrash ? 1 : 0.3, transition: "opacity 0.15s" }}>🗑</span>
+        </div>
+      )}
+
       {/* Toolbar — top right */}
       <div
+        onDoubleClick={(e) => e.stopPropagation()}
         style={{
           position: "fixed",
           top: 16,
@@ -148,6 +205,9 @@ function Flow() {
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
         onConnect={onConnect}
+        onNodeDragStart={onNodeDragStart}
+        onNodeDrag={onNodeDrag}
+        onNodeDragStop={onNodeDragStop}
         nodeTypes={nodeTypes}
         fitView
         fitViewOptions={{ maxZoom: 1 }}

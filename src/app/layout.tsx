@@ -15,6 +15,9 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "ugpt",
   description: "minimalist canvas ai chat",
+  icons: {
+    icon: "/favicon.svg",
+  },
 };
 
 export default function RootLayout({
