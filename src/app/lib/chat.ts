@@ -2,25 +2,7 @@ export interface ChatMessage {
   role: "user" | "assistant" | "system";
   content: string;
 }
-
-function resolveApiUrl() {
-  const raw = (process.env.NEXT_PUBLIC_API_URL || "").trim();
-  if (!raw) return "http://localhost:3001";
-
-  // If production is served over HTTPS, force HTTPS for non-local backends.
-  if (raw.startsWith("http://") && !raw.includes("localhost")) {
-    return raw.replace(/^http:\/\//, "https://").replace(/\/$/, "");
-  }
-
-  // Allow bare domains in env (e.g. "api.ugpt.ca").
-  if (!/^https?:\/\//i.test(raw) && !raw.startsWith("/")) {
-    return `https://${raw}`.replace(/\/$/, "");
-  }
-
-  return raw.replace(/\/$/, "");
-}
-
-const API_URL = resolveApiUrl();
+const CHAT_API_URL = "/api/chat";
 
 export type ToolEventType = "image_generating" | "image_result" | "image_error" | "searching" | "search_sources" | "search_done" | "search_error";
 
@@ -32,7 +14,7 @@ export async function streamChat(
   onToolEvent?: (type: ToolEventType, data?: string) => void
 ) {
   try {
-    const res = await fetch(`${API_URL}/api/chat`, {
+    const res = await fetch(CHAT_API_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ messages }),
