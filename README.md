@@ -1,36 +1,66 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# ugpt
 
-## Getting Started
+<https://ugpt.ca>
 
-First, run the development server:
+ugpt is a minimalist canvas-based AI chat app. The frontend is a Next.js app with a node-based chat canvas, and the backend is a small Express server that proxies model, image, and web-search requests.
+
+## Stack
+
+- Next.js 16 + React 19
+- `@xyflow/react` for the canvas UI
+- Express backend for chat streaming, image generation, and search
+- OpenRouter for model and image requests
+- Exa for web search
+
+## Local development
+
+Install dependencies in both app roots:
+
+```bash
+npm install
+cd server && npm install
+```
+
+Create local env files from the examples:
+
+```bash
+cp .env.example .env
+cp server/.env.example server/.env
+```
+
+Run the backend:
+
+```bash
+cd server
+npm run dev
+```
+
+Run the frontend:
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open <http://localhost:3000>.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Environment
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Frontend envs are optional for local development because the Next.js API route falls back to `http://localhost:3001`.
 
-## Learn More
+Backend envs:
 
-To learn more about Next.js, take a look at the following resources:
+- `OPENROUTER_API_KEY`
+- `EXA_API_KEY`
+- `MODEL` (optional)
+- `DAILY_BUDGET` (optional)
+- `CORS_ORIGINS` (optional)
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Deployment notes
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+- Production site: <https://ugpt.ca>
+- Backend origin allowlist already includes `https://ugpt.ca` and `https://www.ugpt.ca`
+- Deployment helper scripts live in [`deploy-scripts/`](/Users/ace/projects/ugpt/deploy-scripts)
 
-## Deploy on Vercel
+## Open-source note
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+This repository is licensed under the GNU Affero General Public License v3.0 or later. See [LICENSE](/Users/ace/projects/ugpt/LICENSE).
